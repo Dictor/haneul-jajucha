@@ -90,18 +90,18 @@ class Planning(BasePlanning):
                 q4.append(l)
 
         cv2.putText(perspective, "q2: {0}, q1: {1}".format(
-            len(q2), len(q1)), (10, 50), cv2.FONT_ITALIC, 1, (255, 0, 0), 2)
+            len(q2), len(q1)), (10, 20), cv2.FONT_ITALIC, 0.8, (255, 0, 0), 2)
         cv2.putText(perspective, "q3: {0}, q4: {1}".format(
-            len(q3), len(q4)), (10, 200), cv2.FONT_ITALIC, 1, (255, 0, 0), 2)
+            len(q3), len(q4)), (10, 230), cv2.FONT_ITALIC, 0.8, (255, 0, 0), 2)
 
         # 좌평면 우평면의 직선 차선 판별
         lhscnt = 0
         rhscnt = 0
         for l in q2 + q3:
-            if l.length > 70:
+            if l.length > 70 and abs(l.angle) > 1:
                 lhscnt += 1
         for l in q1 + q4:
-            if l.length > 70:
+            if l.length > 70 and abs(l.angle) > 1:
                 rhscnt += 1
 
         tiltrcnt = 0
@@ -113,9 +113,21 @@ class Planning(BasePlanning):
                 tiltlcnt += 1
 
         cv2.putText(perspective, "lhs: {0}, rhs: {1}".format(
-            lhscnt, rhscnt), (10, 100), cv2.FONT_ITALIC, 1, (0, 255, 0), 2)
+            lhscnt, rhscnt), (10, 50), cv2.FONT_ITALIC, 0.8, (0, 255, 0), 2)
         cv2.putText(perspective, "tL: {0}, tR: {1}".format(
-            tiltlcnt, tiltrcnt), (10, 150), cv2.FONT_ITALIC, 1, (0, 255, 0), 2)
+            tiltlcnt, tiltrcnt), (10, 200), cv2.FONT_ITALIC, 0.8, (0, 255, 0), 2)
+
+        situation = "N/A"
+        if lhscnt >= 2 and rhscnt >= 2:
+            situation = "straight"
+        else:
+            if tiltlcnt > 5:
+                situation = "left-turn"
+            else:
+                situation = "right-turn"
+
+        cv2.putText(perspective, "situation: {0}".format(
+            situation), (10, 170), cv2.FONT_ITALIC, 0.8, (255, 255, 0), 2)
 
         cv2.imshow("hough", perspective)
         self.vars.steer = steer
