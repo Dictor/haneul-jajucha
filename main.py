@@ -12,7 +12,7 @@ class lane:
         self.pt2 = pt2
         self.length = math.sqrt(
             (pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2)
-        self.angle = math.atan(pt1[0] - pt2[0] / (pt1[1] - pt2[1]))
+        self.angle = math.atan2(pt1[1] - pt2[1], pt1[0] - pt2[0])
         self.center = ((pt1[0] + pt2[0]) / 2, (pt1[1] + pt2[1]) / 2)
 
 
