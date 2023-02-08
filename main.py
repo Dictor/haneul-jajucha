@@ -4,7 +4,9 @@ from jajucha.control import mtx
 import cv2
 import numpy as np
 import math
-
+from cnn import model, util
+import torch
+import torchvision.transforms as transforms
 
 class lane:
     def __init__(self, pt1, pt2):
@@ -15,7 +17,6 @@ class lane:
         self.angle = math.atan2(pt1[1] - pt2[1], pt1[0] - pt2[0])
         self.center = ((pt1[0] + pt2[0]) / 2, (pt1[1] + pt2[1]) / 2)
 
-
 class Planning(BasePlanning):
     def __init__(self, graphics):
         super().__init__(graphics)
@@ -25,6 +26,9 @@ class Planning(BasePlanning):
         self.vars.stop = True
         self.vars.steer = 0
         self.vars.velocity = 0
+        self.model = model.CNN(util.default_perspective).to("cpu")
+        self.model.load_state_dict(torch.load("./cnn/model", map_location="cpu"))
+        self.model.eval()
 
     def process(self, t, frontImage, rearImage, frontLidar, rearLidar):
         """
@@ -40,96 +44,30 @@ class Planning(BasePlanning):
         velocity = 0
 
         # 시점 변환
-        left_top = [200, 260]
-        right_top = [440, 260]
-        left_bottom = [0, 380]
-        right_bottom = [640, 380]
-        w = int(np.linalg.norm(np.array(right_top) - np.array(left_top)))
-        h = int(np.linalg.norm(np.array(left_bottom) - np.array(left_top)))
-        pts1 = np.float32([left_top, right_top, left_bottom, right_bottom])
-        pts2 = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
-        M = cv2.getPerspectiveTransform(pts1, pts2)
-        perspective = cv2.warpPerspective(frontImage, M, (int(w), int(h)))
+        perspective = util.JajuchaCV.cv_perspective_area(
+            frontImage, util.default_perspective)
 
-        for val in pts1:
+        for val in (util.default_perspective.left_bottom, util.default_perspective.left_top, util.default_perspective.right_bottom, util.default_perspective.right_top):
             cv2.circle(frontImage, (int(val[0]), int(
                 val[1])), 5, (0, 0, 255), -1)
         cv2.imshow("front", frontImage)
 
         # 캐니 엣지
-        canny = self.canny(perspective)
+        canny = util.JajuchaCV.cv_canny(perspective)
         cv2.imshow("canny", canny)
 
-        # 확률적 허프변환
-        lines = cv2.HoughLinesP(canny, 1, np.pi / 180,
-                                30, minLineLength=30, maxLineGap=30)
-        lanes = []
-        if lines is not None:
-            for i in range(lines.shape[0]):
-                pt1 = (lines[i][0][0], lines[i][0][1])
-                pt2 = (lines[i][0][2], lines[i][0][3])
-                lanes.append(lane(pt1, pt2))
-                cv2.line(perspective, pt1, pt2, (0, 0, 255), 2, cv2.LINE_AA)
+        tinput = transforms.ToTensor()(canny)
+        tinput = tinput.unsqueeze_(0)
+        tinput = tinput.to("cpu")
+        out = self.model(tinput)
+        _, outidx = out.max(dim=1)
 
-        # 선분 중앙점을 통한 사분면 판별
-        # 2 | 1
-        # ------
-        # 3 | 4
-        q1 = []
-        q2 = []
-        q3 = []
-        q4 = []
-        for l in lanes:
-            if l.center[0] < (w/2) and l.center[1] < (h/2):
-                q2.append(l)
-            elif l.center[0] < (w/2) and l.center[1] >= (h/2):
-                q3.append(l)
-            elif l.center[0] > (w/2) and l.center[1] < (h/2):
-                q1.append(l)
-            else:
-                q4.append(l)
+        classes = ['four', 'left', 'perpendicular', 'right', 'three_left', 'three_right']
+        situation = outidx.item()
+        cv2.putText(perspective, "{0} {1:0.2f}%".format(
+            classes[situation], out[0][outidx].item()), (10, 170), cv2.FONT_ITALIC, 0.8, (255, 255, 0), 2)
 
-        cv2.putText(perspective, "q2: {0}, q1: {1}".format(
-            len(q2), len(q1)), (10, 20), cv2.FONT_ITALIC, 0.8, (255, 0, 0), 2)
-        cv2.putText(perspective, "q3: {0}, q4: {1}".format(
-            len(q3), len(q4)), (10, 230), cv2.FONT_ITALIC, 0.8, (255, 0, 0), 2)
-
-        # 좌평면 우평면의 직선 차선 판별
-        lhscnt = 0
-        rhscnt = 0
-        for l in q2 + q3:
-            if l.length > 70 and abs(l.angle) > 1:
-                lhscnt += 1
-        for l in q1 + q4:
-            if l.length > 70 and abs(l.angle) > 1:
-                rhscnt += 1
-
-        tiltrcnt = 0
-        tiltlcnt = 0
-        for l in lanes:
-            if l.angle >= 0:
-                tiltrcnt += 1
-            else:
-                tiltlcnt += 1
-
-        cv2.putText(perspective, "lhs: {0}, rhs: {1}".format(
-            lhscnt, rhscnt), (10, 50), cv2.FONT_ITALIC, 0.8, (0, 255, 0), 2)
-        cv2.putText(perspective, "tL: {0}, tR: {1}".format(
-            tiltlcnt, tiltrcnt), (10, 200), cv2.FONT_ITALIC, 0.8, (0, 255, 0), 2)
-
-        situation = "N/A"
-        if lhscnt >= 2 and rhscnt >= 2:
-            situation = "straight"
-        else:
-            if tiltlcnt > 5:
-                situation = "left-turn"
-            else:
-                situation = "right-turn"
-
-        cv2.putText(perspective, "situation: {0}".format(
-            situation), (10, 170), cv2.FONT_ITALIC, 0.8, (255, 255, 0), 2)
-
-        cv2.imshow("hough", perspective)
+        cv2.imshow("perspective", perspective)
         self.vars.steer = steer
         self.vars.velocity = velocity
         return self.vars.steer, self.vars.velocity
