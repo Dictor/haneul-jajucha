@@ -7,10 +7,13 @@ class PerspectiveArea:
         self.right_top = right_top
         self.left_bottom = left_bottom
         self.right_bottom = right_bottom
-        self.width = int(np.linalg.norm(
-            np.array(right_top) - np.array(left_top)))
-        self.height = int(np.linalg.norm(
-            np.array(left_bottom) - np.array(left_top)))
+        self.width = 224 # 224 is 16 * 14
+        self.height = 224
+        
+        #self.width = int(np.linalg.norm(
+        #    np.array(right_top) - np.array(left_top)))
+        #self.height = int(np.linalg.norm(
+        #    np.array(left_bottom) - np.array(left_top)))
 
 default_perspective = PerspectiveArea([200, 260], [440, 260], [0, 380], [640, 380])
 
@@ -54,7 +57,7 @@ class JajuchaCV:
         pts1 = np.float32([left_top, right_top, left_bottom, right_bottom])
         pts2 = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
         M = cv2.getPerspectiveTransform(pts1, pts2)
-        return cv2.warpPerspective(img, M, (int(w), int(h)))
+        return cv2.warpPerspective(img, M, (224, 224))
 
     @classmethod
     def cv_perspective_area(cls, img, area):

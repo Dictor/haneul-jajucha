@@ -34,14 +34,11 @@ class JajuchaDataset(dsets.ImageFolder):
         sample = transforms.ToTensor()(img_canny)
         return sample, target
 
-device = "cpu"
-#device = 'cuda' if torch.cuda.is_available() else 'cpu'
-#torch.manual_seed(777)
-#if device == 'cuda':
-#    torch.cuda.manual_seed_all(777)
-#elif device == 'tml':
-#    import torch_directml
-#    device = torch_directml.device()
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+torch.manual_seed(777)
+if device == 'cuda':
+    torch.cuda.manual_seed_all(777)
+print("device is {}".format(device))
 
 learning_rate = 0.001
 training_epochs = 15

@@ -9,7 +9,7 @@ import torch
 import torchvision.transforms as transforms
 
 class lane:
-    def __init__(self, pt1, pt2):
+    def __init__(self, pt1, pt2): 
         self.pt1 = pt1
         self.pt2 = pt2
         self.length = math.sqrt(
@@ -59,13 +59,13 @@ class Planning(BasePlanning):
         tinput = transforms.ToTensor()(canny)
         tinput = tinput.unsqueeze_(0)
         tinput = tinput.to("cpu")
-        out = self.model(tinput)
+        out = torch.exp(self.model(tinput))
         _, outidx = out.max(dim=1)
 
         classes = ['four', 'left', 'perpendicular', 'right', 'three_left', 'three_right']
         situation = outidx.item()
         cv2.putText(perspective, "{0} {1:0.2f}%".format(
-            classes[situation], out[0][outidx].item()), (10, 170), cv2.FONT_ITALIC, 0.8, (255, 255, 0), 2)
+            classes[situation], out[0][outidx].item()*100), (10, 170), cv2.FONT_ITALIC, 0.6, (255, 255, 0), 2)
 
         cv2.imshow("perspective", perspective)
         self.vars.steer = steer
